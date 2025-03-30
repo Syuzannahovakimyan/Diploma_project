@@ -17,12 +17,14 @@ private slots:
     void toggleCells();
     void togglePins();
     void toggleNets();
+    void togglePads();
 
 private:
     void drawGrid(int width, int height);
     void drawCells(const QJsonArray &cellsArray);
     void drawPins(const QJsonArray &cellsArray);
     void drawNets(const QJsonArray &netsArray);
+    void drawPads(const QJsonArray &padsArray);
 
     QGraphicsScene *scene;
     QGraphicsView *view;
