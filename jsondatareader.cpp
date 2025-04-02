@@ -27,8 +27,9 @@ void JsonDataReader::readData() {
         cell.width = cell_json["size"]["width"];
         cell.height = cell_json["size"]["height"];
 
-        std::cout << "  🏠 " << cell.uid <<" size: " << cell.width << "x" << cell.height << std::endl;
-
+        // std::cout << "  🏠 " << cell.uid <<" size: " << cell.width << "x" << cell.height << std::endl;
+            std::cout << "  🏠 " << cell.uid << " at (" << cell.coord.x << ", " << cell.coord.y
+                      << "), size: " << cell.width << "x" << cell.height << std::endl;
         // Կարդում ենք փիները
         for (const auto& pin_json : cell_json["pins"]) {
             Pin pin;

@@ -12,6 +12,7 @@ SOURCES += \
     controller.cpp \
     generator.cpp \
     jsondatareader.cpp \
+    jsonplacementwriter.cpp \
     main.cpp \
     mainwindow.cpp \
     matrix_compute.cpp \
@@ -22,6 +23,7 @@ HEADERS += \
     controller.h \
     generator.h \
     jsondatareader.h \
+    jsonplacementwriter.h \
     mainwindow.h \
     matrix_compute.h \
     quadraticplacement.h \
