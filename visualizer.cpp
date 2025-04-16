@@ -1,6 +1,7 @@
 #include "visualizer.h"
 #include "jsondatareader.h"
-
+#include "mincutplacement.h"
+#include "linesearchrouting.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -159,6 +160,10 @@ Visualizer::Visualizer(QWidget *parent)
 
     // Initial reset
     resetView();
+    view->scale(7, 7);
+    loadJsonFromFile("../output.json");
+    statusBar->showMessage("Genereted json file loaded", 3000);
+
 }
 
 void Visualizer::setupUi() {
@@ -196,10 +201,16 @@ void Visualizer::setupUi() {
     QVBoxLayout *fileLayout = new QVBoxLayout(fileGroup);
 
     loadJsonBtn = new QPushButton("Load JSON", fileGroup);
-    savePlacementBtn = new QPushButton("Save Placement", fileGroup);
+    savePlacementBtn = new QPushButton("Save", fileGroup);
+
+    // runMinCutBtn = new QPushButton("Run Min-Cut Placement", placementGroup);
+    // placementLayout->addWidget(runMinCutBtn);
+
 
     fileLayout->addWidget(loadJsonBtn);
     fileLayout->addWidget(savePlacementBtn);
+    // placementLayout->addWidget(runMinCutBtn);
+
 
     // Zoom controls group
     QGroupBox *zoomGroup = new QGroupBox("Zoom Controls", controlsWidget);
@@ -219,6 +230,23 @@ void Visualizer::setupUi() {
 
     runPlacementBtn = new QPushButton("Run Quadratic Placement", placementGroup);
     placementLayout->addWidget(runPlacementBtn);
+
+    runMinCutBtn = new QPushButton("Run Min-Cut Placement", placementGroup);
+    placementLayout->addWidget(runMinCutBtn);
+
+    // Routing controls group
+    QGroupBox *routingGroup = new QGroupBox("Routing", controlsWidget);
+    QVBoxLayout *routingLayout = new QVBoxLayout(routingGroup);
+
+    // Placement controls group-ի մեջ
+    runRipUpAndRerouteBtn = new QPushButton("Run Rip-up and Reroute", routingGroup);
+    routingLayout->addWidget(runRipUpAndRerouteBtn);
+
+
+    // Ավելացվող կոճակ
+    runLineSearchRoutingBtn = new QPushButton("Run Line Search Routing", routingGroup);
+    routingLayout->addWidget(runLineSearchRoutingBtn);
+
 
     // Appearance customization group
     QGroupBox *appearanceGroup = new QGroupBox("Appearance", controlsWidget);
@@ -252,6 +280,7 @@ void Visualizer::setupUi() {
     controlsLayout->addWidget(fileGroup);
     controlsLayout->addWidget(zoomGroup);
     controlsLayout->addWidget(placementGroup);
+    controlsLayout->addWidget(routingGroup);
     controlsLayout->addWidget(appearanceGroup);
     controlsLayout->addStretch();
 
@@ -307,6 +336,8 @@ void Visualizer::createActions() {
 
     // Placement controls
     connect(runPlacementBtn, &QPushButton::clicked, this, &Visualizer::runPlacement);
+    connect(runMinCutBtn, &QPushButton::clicked, this, &Visualizer::runMinCutPlacement);
+
 
     // Color customization
     connect(cellColorBtn, &QPushButton::clicked, this, &Visualizer::setCellColor);
@@ -318,6 +349,10 @@ void Visualizer::createActions() {
     // Element size control
     connect(elementSizeSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &Visualizer::adjustElementSize);
+    connect(runLineSearchRoutingBtn, &QPushButton::clicked, this, &Visualizer::runLineSearchRouting);
+
+    connect(runRipUpAndRerouteBtn, &QPushButton::clicked, this, &Visualizer::runRipUpAndReroute);
+
 }
 
 void Visualizer::createStatusBar() {
@@ -522,12 +557,13 @@ void Visualizer::loadJsonFromFile(const QString &filePath) {
 
     // Update statistics
     updateStatistics();
-
+    // resetZoom();
     // Status update
     statusBar->showMessage("Loaded: " + filePath, 3000);
 
     // Fit content in view
     resetView();
+    resetZoom();
 }
 
 void Visualizer::saveCurrentPlacement() {
@@ -665,7 +701,7 @@ void Visualizer::runPlacement() {
         std::vector<Net> nets = reader.getNets();
         std::vector<Pad> pads = reader.getPads();
 
-        QuadraticPlacement placer(cells, nets, pads,{1000,1000});
+        QuadraticPlacement placer(cells, nets, pads,{500,500});
         std::vector<int> x, y;
         placer.compute_X(x, y);
 
@@ -692,22 +728,114 @@ void Visualizer::runPlacement() {
             drawGrid(width, height);
         }
 
-
-
-        drawCells(jsonObj["cells"].toArray());
-        drawPins(jsonObj["cells"].toArray());
-        drawNets(jsonObj["nets"].toArray());
-        drawPads(jsonObj["pads"].toArray());
-
-        // Update statistics
-        updateStatistics();
-
+        loadJsonFromFile("../updated_output.json");
         statusBar->showMessage("Quadratic placement completed", 3000);
+
     } catch (const std::exception& e) {
-        QMessageBox::warning(this, "Error", "Failed to run placement: " + QString(e.what()));
+        QMessageBox::warning(this, "Error", "Fai{100,100}led to run placement: " + QString(e.what()));
         statusBar->showMessage("Placement failed", 3000);
     }
 }
+
+void Visualizer::runMinCutPlacement()
+{
+    if (jsonDocument.isNull()) {
+        QMessageBox::warning(this, "Error", "No JSON data loaded to run placement on");
+        return;
+    }
+
+    statusBar->showMessage("Running Min-Cut placement...");
+
+    try {
+        JsonDataReader reader("../output.json");  // Adjust path as necessary
+        reader.readData();
+        std::vector<Cell> cells = reader.getCells();
+        std::vector<Net> nets = reader.getNets();
+        std::vector<Pad> pads = reader.getPads();
+
+        Coord area = {500, 500};  // Or retrieve from JSON
+        std::vector<int> x, y;
+
+        MinCutPlacement placer(cells, nets, pads, area);
+        placer.run(x, y);  // Adjust method name if different
+
+        JsonPlacementWriter writer("../output.json", "../updated_output.json");
+        writer.writeUpdatedJson(cells, x, y);
+
+        loadJsonFromFile("../updated_output.json");
+        statusBar->showMessage("Min-Cut placement completed", 3000);
+    } catch (const std::exception& e) {
+        QMessageBox::warning(this, "Error", QString("Failed to run Min-Cut: %1").arg(e.what()));
+        statusBar->showMessage("Min-Cut failed", 3000);
+    }
+}
+
+
+void Visualizer::runLineSearchRouting()
+{
+    if (jsonDocument.isNull()) {
+        QMessageBox::warning(this, "Error", "No JSON data loaded for routing");
+        return;
+    }
+
+    statusBar->showMessage("Running Line Search Routing...");
+
+    // try {
+    //     JsonDataReader reader("../output.json");
+    //     reader.readData();
+    //     std::vector<Cell> cells = reader.getCells();
+    //     std::vector<Net> nets = reader.getNets();
+    //     std::vector<Pad> pads = reader.getPads();
+
+    //     Coord areaSize = {100, 100};  // Կարող ես վերցնել նաև JSON-ից
+
+    //     LineSearchRouter router(cells, nets, pads, areaSize); // քո routing-ի class-ը
+    //     router.run();  // ենթադրում եմ, որ քո մեթոդը run() է
+
+    //     // Պահիր արդյունքները նոր JSON-ում
+    //     router.saveRoutedJson("../routed_output.json");
+
+    //     // Վերբեռնում ենք նոր JSON-ը
+    //     loadJsonFromFile("../routed_output.json");
+
+    //     statusBar->showMessage("Line Search Routing completed", 3000);
+    // } catch (const std::exception& e) {
+    //     QMessageBox::warning(this, "Routing Error", QString("Failed to run Line Search Routing: %1").arg(e.what()));
+    //     statusBar->showMessage("Routing failed", 3000);
+    // }
+}
+void Visualizer::runRipUpAndReroute()
+{
+    if (jsonDocument.isNull()) {
+        QMessageBox::warning(this, "Error", "No JSON data loaded for routing");
+        return;
+    }
+
+    statusBar->showMessage("Running Rip-up and Reroute...");
+
+    // try {
+    //     JsonDataReader reader("../output.json");
+    //     reader.readData();
+    //     std::vector<Cell> cells = reader.getCells();
+    //     std::vector<Net> nets = reader.getNets();
+    //     std::vector<Pad> pads = reader.getPads();
+
+    //     Coord areaSize = {100, 100};  // կամ JSON-ից վերցրու
+
+    //     RipUpAndRerouteRouter router(cells, nets, pads, areaSize);
+    //     router.run();
+
+    //     router.saveRoutedJson("../ripup_reroute_output.json");
+
+    //     loadJsonFromFile("../ripup_reroute_output.json");
+
+    //     statusBar->showMessage("Rip-up and Reroute completed", 3000);
+    // } catch (const std::exception& e) {
+    //     QMessageBox::warning(this, "Routing Error", QString("Failed Rip-up and Reroute: %1").arg(e.what()));
+    //     statusBar->showMessage("Rip-up and Reroute failed", 3000);
+    // }
+}
+
 
 void Visualizer::handleItemSelection(QGraphicsItem *item) {
     if (!item) return;
@@ -976,7 +1104,7 @@ void Visualizer::showItemDetails(QGraphicsItem *item) {
 
             // Find connected nets
             details += "\nConnected Nets:\n";
-            QPointF padCenter = rect->scenePos() + QPointF(bounds.width()/2, bounds.height()/2);
+            // QPointF padCenter = rect->scenePos() + QPointF(bounds.width()/2, bounds.height()/2);
 
             for (auto netItem : scene->items()) {
                 if (netItem->data(0) == "net" && netItem->type() == QGraphicsLineItem::Type) {
@@ -1165,7 +1293,7 @@ void Visualizer::setGridColor() {
     }
 }
 
-void Visualizer::adjustElementSize(int size) {
+void Visualizer::adjustElementSize() {
     // Redraw with new element size if JSON is loaded
     if (!jsonDocument.isNull()) {
         QJsonObject jsonObj = jsonDocument.object();
@@ -1383,7 +1511,7 @@ void Visualizer::drawCells(const QJsonArray &cellsArray) {
 
         // Add cell label
         QString cellUid = cellObj["uid"].toString();
-        QGraphicsTextItem *label = scene->addText(cellUid, QFont("Arial", 1.5));
+        QGraphicsTextItem *label = scene->addText(cellUid, QFont("Arial", 1));
         label->setDefaultTextColor(Qt::black);
         label->setPos(x + width/2 - 2, y + height/2 - 1);
         label->setData(0, "cell");
@@ -1412,7 +1540,7 @@ void Visualizer::drawPins(const QJsonArray &cellsArray) {
 
             // Add pin label
             QString pinUid = pinObj["uid"].toString();
-            QGraphicsTextItem *label = scene->addText(pinUid, QFont("Arial", 1.0));
+            QGraphicsTextItem *label = scene->addText(pinUid, QFont("Arial", 1));
             label->setDefaultTextColor(Qt::black);
             label->setPos(x + 0.3, y + 0.3);
             label->setData(0, "pin");
@@ -1455,7 +1583,7 @@ void Visualizer::drawNets(const QJsonArray &netsArray) {
 
             // Make net label
             QString label = netUID + " - " + QString::number(weight);
-            QGraphicsTextItem *textItem = scene->addText(label, QFont("Arial", 1.5));
+            QGraphicsTextItem *textItem = scene->addText(label, QFont("Arial", 1));
             textItem->setDefaultTextColor(netColor);
             textItem->setPos((x1 + x2) / 2 - 3, (y1 + y2) / 2 - 1);
             textItem->setData(0, "net");
@@ -1483,7 +1611,7 @@ void Visualizer::drawPads(const QJsonArray &padsArray) {
         // Add pad label if it has a UID
         if (padObj.contains("uid")) {
             QString padUid = padObj["uid"].toString();
-            QGraphicsTextItem *label = scene->addText(padUid, QFont("Arial", 1.2));
+            QGraphicsTextItem *label = scene->addText(padUid, QFont("Arial", 1));
             label->setDefaultTextColor(Qt::darkGreen);
             label->setPos(x + width/2 - 2, y + height/2 - 1);
             label->setData(0, "pad");
@@ -1581,7 +1709,7 @@ QJsonDocument Visualizer::getCurrentJson() const {
                         if (textItem->toPlainText() == cellUid) {
                             // Found the matching cell, update its position
                             QGraphicsRectItem *rectItem = qgraphicsitem_cast<QGraphicsRectItem*>(item);
-                            QRectF rect = rectItem->rect();
+                            // QRectF rect = rectItem->rect();
                             QPointF pos = rectItem->scenePos();
 
                             QJsonObject coordObj = cellObj["coord"].toObject();

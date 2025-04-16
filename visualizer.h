@@ -1,6 +1,7 @@
 #ifndef VISUALIZER_H
 #define VISUALIZER_H
 
+
 #include <QMainWindow>
 #include <QGraphicsScene>
 #include <QGraphicsView>
@@ -74,6 +75,10 @@ private slots:
 
     // Layout operations
     void runPlacement();
+    void runMinCutPlacement();
+    void runLineSearchRouting();
+    void runRipUpAndReroute();
+
 
     // Selection and information
     void handleItemSelection(QGraphicsItem *item);
@@ -87,7 +92,7 @@ private slots:
     void setGridColor();
 
     // Element customization
-    void adjustElementSize(int size);
+    void adjustElementSize();
 
     // Statistics update
     void updateStatistics();
@@ -145,6 +150,12 @@ private:
     QPushButton *netColorBtn;
     QPushButton *padColorBtn;
     QPushButton *gridColorBtn;
+    QPushButton *runMinCutBtn;
+    QPushButton *runLineSearchRoutingBtn;
+    QPushButton *runRipUpAndRerouteBtn;
+
+
+
 
     // Dock widgets
     QDockWidget *controlsDock;

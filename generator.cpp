@@ -18,6 +18,8 @@ json JsonDataGenerator::generate() {
     pads.clear();  // Clear pads before generating new ones
     all_pins.clear();
 
+    generateAllPads();
+
     // Generate cells
     while (cells.size() < static_cast<size_t>(cell_count)) {
         Cell new_cell = generateCell();
@@ -30,9 +32,9 @@ json JsonDataGenerator::generate() {
     }
 
     // Generate pads
-    while (pads.size() < static_cast<size_t>(pad_count)) {
-        pads.push_back(generatePad());
-    }
+    // while (pads.size() < static_cast<size_t>(pad_count)) {
+    //     pads.push_back(generatePad());
+    // }
 
     json cells_json = json::array();
     for (const auto& cell : cells) {
@@ -93,7 +95,19 @@ Cell JsonDataGenerator::generateCell() {
 }
 
 
+// bool JsonDataGenerator::isOverlapping(const Cell& new_cell) {
+//     for (const auto& cell : cells) {
+//         if (!(new_cell.coord.x + new_cell.width <= cell.coord.x ||
+//               cell.coord.x + cell.width <= new_cell.coord.x ||
+//               new_cell.coord.y + new_cell.height <= cell.coord.y ||
+//               cell.coord.y + cell.height <= new_cell.coord.y)) {
+//             return true;
+//         }
+//     }
+//     return false;
+// }
 bool JsonDataGenerator::isOverlapping(const Cell& new_cell) {
+    // Check overlap with other cells
     for (const auto& cell : cells) {
         if (!(new_cell.coord.x + new_cell.width <= cell.coord.x ||
               cell.coord.x + cell.width <= new_cell.coord.x ||
@@ -102,8 +116,20 @@ bool JsonDataGenerator::isOverlapping(const Cell& new_cell) {
             return true;
         }
     }
+
+    // Check overlap with pads
+    for (const auto& pad : pads) {
+        if (!(new_cell.coord.x + new_cell.width <= pad.coord.x ||
+              pad.coord.x + pad.width <= new_cell.coord.x ||
+              new_cell.coord.y + new_cell.height <= pad.coord.y ||
+              pad.coord.y + pad.height <= new_cell.coord.y)) {
+            return true;
+        }
+    }
+
     return false;
 }
+
 
 
 json JsonDataGenerator::generateNets() {
@@ -121,8 +147,8 @@ json JsonDataGenerator::generateNets() {
     // Add pads as well, ensuring they are part of the connection list
     for (const auto& pad : pads) {
         Pin pad_pin;
-        pad_pin.uid = pad.uid; // Assuming pads have a unique id
-        pad_pin.coord = pad.coord; // Assuming pads have a coordinate
+        pad_pin.uid = pad.uid;
+        pad_pin.coord = adjustPadCoordInsideArea(pad);  // ← Ահա այստեղ
         all_pin_list.push_back(pad_pin);
     }
 
@@ -166,40 +192,154 @@ json JsonDataGenerator::generateNets() {
     return nets_json;
 }
 
+Coord JsonDataGenerator::adjustPadCoordInsideArea(const Pad& pad) {
+    Coord adjusted = pad.coord;
 
+    if (pad.coord.x < 0) {
+        adjusted.x = 0;  // դուրս է ձախից
+    } else if (pad.coord.x >= area.x) {
+        adjusted.x = area.x - 1;  // դուրս է աջից
+    }
 
-Pad JsonDataGenerator::generatePad() {
-    Pad pad;
-    do {
-        // Randomly choose an edge: 0 - top, 1 - bottom, 2 - left, 3 - right
-        int edge = getRandom(0, 3);
-        int side_length = getRandom(min_pad_size, std::min(max_pad_size, area.x));
-        pad.width = side_length;
-        pad.height = side_length;  // Ensure the pad is square
+    if (pad.coord.y < 0) {
+        adjusted.y = 0;  // դուրս է վերևից
+    } else if (pad.coord.y >= area.y) {
+        adjusted.y = area.y - 1;  // դուրս է ներքևից
+    }
 
-        if (edge == 0) {
-            // Place on the top edge
-            pad.coord = { getRandom(0, area.x - pad.width), 0 };
-        } else if (edge == 1) {
-            // Place on the bottom edge
-            pad.coord = { getRandom(0, area.x - pad.width), area.y - pad.height };
-        } else if (edge == 2) {
-            // Place on the left edge
-            pad.coord = { 0, getRandom(0, area.y - pad.height) };
-        } else {
-            // Place on the right edge
-            pad.coord = { area.x - pad.width, getRandom(0, area.y - pad.height) };
-        }
-
-    } while (isPadOverlapping(pad));
-
-    pad.uid = "pad" + std::to_string(pad_id);
-    ++pad_id;
-    return pad;
+    return adjusted;
 }
 
 
+
+
+// Pad JsonDataGenerator::generatePad() {
+//     Pad pad;
+//     do {
+//         // Randomly choose an edge: 0 - top, 1 - bottom, 2 - left, 3 - right
+//         int edge = getRandom(0, 3);
+//         int side_length = getRandom(min_pad_size, std::min(max_pad_size, area.x));
+//         pad.width = side_length;
+//         pad.height = side_length;  // Ensure the pad is square
+
+//         if (edge == 0) {
+//             // Place on the top edge
+//             pad.coord = { getRandom(0, area.x - pad.width), 0 };
+//         } else if (edge == 1) {
+//             // Place on the bottom edge
+//             pad.coord = { getRandom(0, area.x - pad.width), area.y - pad.height };
+//         } else if (edge == 2) {
+//             // Place on the left edge
+//             pad.coord = { 0, getRandom(0, area.y - pad.height) };
+//         } else {
+//             // Place on the right edge
+//             pad.coord = { area.x - pad.width, getRandom(0, area.y - pad.height) };
+//         }
+
+//     } while (isPadOverlapping(pad));
+
+//     pad.uid = "pad" + std::to_string(pad_id);
+//     ++pad_id;
+//     return pad;
+// }
+
+Pad JsonDataGenerator::generatePad() {
+    throw std::runtime_error("Use generateAllPads() instead of generatePad().");
+}
+
+void JsonDataGenerator::generateAllPads() {
+    int size = std::min(min_pad_size, max_pad_size);
+    int gap = std::max(2 * size, 30);
+    int step = size + gap;
+
+    int count_x = area.x / step;
+    int count_y = area.y / step;
+
+    // Վերևի եզրից դուրս (y = -size)
+    for (int i = 0; i < count_x; ++i) {
+        int x = i * step;
+        pads.push_back(Pad{
+            "pad" + std::to_string(pad_id++),
+            Coord{ x, -size },  // դուրս վերևից
+            size, size
+        });
+    }
+
+    // Ստորին եզրից դուրս (y = area.y)
+    for (int i = 0; i < count_x; ++i) {
+        int x = i * step;
+        pads.push_back(Pad{
+            "pad" + std::to_string(pad_id++),
+            Coord{ x, area.y },  // դուրս ներքևից
+            size, size
+        });
+    }
+
+    // Ձախ եզրից դուրս (x = -size)
+    for (int i = 0; i < count_y; ++i) {
+        int y = i * step;
+        pads.push_back(Pad{
+            "pad" + std::to_string(pad_id++),
+            Coord{ -size, y },  // դուրս ձախից
+            size, size
+        });
+    }
+
+    // Աջ եզրից դուրս (x = area.x)
+    for (int i = 0; i < count_y; ++i) {
+        int y = i * step;
+        pads.push_back(Pad{
+            "pad" + std::to_string(pad_id++),
+            Coord{ area.x, y },  // դուրս աջից
+            size, size
+        });
+    }
+}
+
+
+
+// bool JsonDataGenerator::isOverlapping(const Cell& new_cell) {
+//     // Check overlap with other cells
+//     for (const auto& cell : cells) {
+//         if (!(new_cell.coord.x + new_cell.width <= cell.coord.x ||
+//               cell.coord.x + cell.width <= new_cell.coord.x ||
+//               new_cell.coord.y + new_cell.height <= cell.coord.y ||
+//               cell.coord.y + cell.height <= new_cell.coord.y)) {
+//             return true;
+//         }
+//     }
+
+//     // Check overlap with pads
+//     for (const auto& pad : pads) {
+//         if (!(new_cell.coord.x + new_cell.width <= pad.coord.x ||
+//               pad.coord.x + pad.width <= new_cell.coord.x ||
+//               new_cell.coord.y + new_cell.height <= pad.coord.y ||
+//               pad.coord.y + pad.height <= new_cell.coord.y)) {
+//             return true;
+//         }
+//     }
+
+//     return false;
+// }
+
+
+
+
+
+
+// bool JsonDataGenerator::isPadOverlapping(const Pad& new_pad) {
+//     for (const auto& cell : cells) {
+//         if (!(new_pad.coord.x + new_pad.width <= cell.coord.x ||
+//               cell.coord.x + cell.width <= new_pad.coord.x ||
+//               new_pad.coord.y + new_pad.height <= cell.coord.y ||
+//               cell.coord.y + cell.height <= new_pad.coord.y)) {
+//             return true;
+//         }
+//     }
+//     return false;
+// }
 bool JsonDataGenerator::isPadOverlapping(const Pad& new_pad) {
+    // Check overlap with cells
     for (const auto& cell : cells) {
         if (!(new_pad.coord.x + new_pad.width <= cell.coord.x ||
               cell.coord.x + cell.width <= new_pad.coord.x ||
@@ -208,8 +348,20 @@ bool JsonDataGenerator::isPadOverlapping(const Pad& new_pad) {
             return true;
         }
     }
+
+    // Check overlap with other pads
+    for (const auto& pad : pads) {
+        if (!(new_pad.coord.x + new_pad.width <= pad.coord.x ||
+              pad.coord.x + pad.width <= new_pad.coord.x ||
+              new_pad.coord.y + new_pad.height <= pad.coord.y ||
+              pad.coord.y + pad.height <= new_pad.coord.y)) {
+            return true;
+        }
+    }
+
     return false;
 }
+
 
 void JsonDataGenerator::generatePadsAndNets(QJsonObject &jsonObj, QJsonArray &cellsArray, QJsonArray &netsArray) {
     QJsonArray padsArray;

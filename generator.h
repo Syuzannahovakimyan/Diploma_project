@@ -46,6 +46,9 @@ private:
     Pin generatePin(const Cell& cell, std::unordered_set<Coord>& used_pins);
     bool isPadOverlapping(const Pad& new_pad);
     void generatePadsAndNets(QJsonObject &jsonObj, QJsonArray &cellsArray, QJsonArray &netsArray);
+    void generateAllPads();
+    Coord adjustPadCoordInsideArea(const Pad& pad);
+    // bool isOverlapping(const Cell& new_cell);
 };
 
 #endif // GENERATOR_H

@@ -1,9 +1,11 @@
 #include "controller.h"
 
+
+
 Controller::Controller() {
 
     Coord area = {500, 500};
-    JsonDataGenerator generator(area,1000, 1, 5, 1, 5, 1, 3, 5, 5, 5);
+    JsonDataGenerator generator(area,400, 1, 30, 1, 30, 1, 2, 20, 10, 10);
     json jsonData = generator.generate();
     std::ofstream file("../output.json");
     if (file.is_open()) {
@@ -26,11 +28,32 @@ Controller::Controller() {
     /////////////////////////////////////////////
 
 
-    // JsonDataReader reader("../output.json");
-    // reader.readData();
-    // std::vector<Cell>  cells = reader.getCells();
-    // std::vector<Net>   nets = reader.getNets();
-    // std::vector<Pad>   pads = reader.getPads();
+    JsonDataReader reader("../output.json");
+    reader.readData();
+    std::vector<Cell>  cells = reader.getCells();
+    std::vector<Net>   nets = reader.getNets();
+    std::vector<Pad>   pads = reader.getPads();
+
+
+    LineSearchRouting router(cells, pads);
+
+    for (const auto& net : nets) {
+        Coord start = getAdjustedPinPosition(net.connections.first, cells, pads);
+        Coord end = getAdjustedPinPosition(net.connections.second, cells, pads);
+
+        auto path = router.route(start, end);
+
+        if (!path.empty()) {
+            std::cout << "✅ Net [" << net.uid << "] routed successfully:\n";
+            for (const auto& point : path) {
+                std::cout << "(" << point.x << ", " << point.y << ") ";
+            }
+            std::cout << "\n";
+        } else {
+            std::cout << "❌ Net [" << net.uid << "] routing failed.\n";
+        }
+    }
+
 
 
     // for (const Cell& cell : cells) {
@@ -50,32 +73,29 @@ Controller::Controller() {
     // //         std::cout << "     ➡️ " << conn.pin << std::endl;
     // //     }
     // // }
-
-
-    ////////////////////////////////////////////////
-
-
-    // QuadraticPlacement placer(cells, nets, pads,area);
-
-    // // Հաշվենք X ու Y կոորդինատները
-    // std::vector<int> x, y;
-    // placer.compute_X(x, y);
-
-    //Տպում ենք արդյունքները
-    // std::cout << "Placement results:\n";
-    // for (size_t i = 0; i < cells.size(); ++i) {
-    //     std::cout << "Cell " << cells[i].uid << " -> ("
-    //               << x[i] << ", " << y[i] << ")\n";
-    // }
-
-    // JsonPlacementWriter writer("/home/sh/diplom/build/output.json", "/home/sh/diplom/build/updated_output.json");
-    // writer.writeUpdatedJson(cells, x, y);
-    // try {
-    //     JsonPlacementWriter writer("/home/sh/diplom/build/output.json", "/home/sh/diplom/build/updated_output.json");
-    //     writer.writeUpdatedJson(cells, x, y);
-    // } catch (const std::exception& e) {
-    //     std::cerr << "Error during JSON writing: " << e.what() << std::endl;
-    // }
-
-
 }
+
+Coord Controller::getAdjustedPinPosition(const Pin& pin, const std::vector<Cell>& cells, const std::vector<Pad>& pads) {
+    for (const auto& cell : cells) {
+        for (size_t i = 0; i < cell.pins.size(); ++i) {
+            if (cell.pins[i].uid == pin.uid) {
+                // Դիրքը cell-ի սահմանի վրա, կախված pin-ի ինդեքսից
+                return Coord{
+                    cell.coord.x + ((i % 2 == 0) ? 0 : cell.width),  // x-ը ձախ կամ աջ սահմանին
+                    cell.coord.y + ((i < 2) ? 0 : cell.height)       // y-ը վերևի կամ ներքևի սահմանին
+                };
+            }
+        }
+    }
+
+    for (const auto& pad : pads) {
+        if (pad.uid == pin.uid) {
+            // Pad-ի կենտրոնը վերցնենք
+            return Coord{pad.coord.x + pad.width / 2, pad.coord.y + pad.height / 2};
+        }
+    }
+
+    return pin.coord; // default fallback
+}
+
+

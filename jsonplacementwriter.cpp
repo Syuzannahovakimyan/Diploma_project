@@ -30,12 +30,15 @@ void JsonPlacementWriter::writeUpdatedJson(const std::vector<Cell>& originalCell
         int newX = std::max(0, std::min(x[i], areaW - cellW));
         int newY = std::max(0, std::min(y[i], areaH - cellH));
 
+        int originalX = inputJson["cells"][i]["coord"]["x"];
+        int originalY = inputJson["cells"][i]["coord"]["y"];
+
         inputJson["cells"][i]["coord"]["x"] = newX;
         inputJson["cells"][i]["coord"]["y"] = newY;
 
         for (auto& pin : inputJson["cells"][i]["pins"]) {
-            int dx = pin["coord"]["x"].get<int>() - originalCells[i].coord.x;
-            int dy = pin["coord"]["y"].get<int>() - originalCells[i].coord.y;
+            int dx = pin["coord"]["x"].get<int>() - originalX;
+            int dy = pin["coord"]["y"].get<int>() - originalY;
 
             pin["coord"]["x"] = newX + dx;
             pin["coord"]["y"] = newY + dy;
@@ -46,11 +49,17 @@ void JsonPlacementWriter::writeUpdatedJson(const std::vector<Cell>& originalCell
         for (auto& conn : net["connections"]) {
             std::string pinUid = conn["pin"];
 
-            for (size_t i = 0; i < originalCells.size(); ++i) {
-                for (const auto& pin : originalCells[i].pins) {
-                    if (pin.uid == pinUid) {
-                        int dx = pin.coord.x - originalCells[i].coord.x;
-                        int dy = pin.coord.y - originalCells[i].coord.y;
+            for (size_t i = 0; i < inputJson["cells"].size(); ++i) {
+                for (const auto& pin : inputJson["cells"][i]["pins"]) {
+                    if (pin["uid"] == pinUid) {
+                        int originalX = inputJson["cells"][i]["coord"]["x"];
+                        int originalY = inputJson["cells"][i]["coord"]["y"];
+
+                        int pinX = pin["coord"]["x"];
+                        int pinY = pin["coord"]["y"];
+
+                        int dx = pinX - originalX;
+                        int dy = pinY - originalY;
 
                         int newX = std::max(0, std::min(x[i], areaW - originalCells[i].width));
                         int newY = std::max(0, std::min(y[i], areaH - originalCells[i].height));

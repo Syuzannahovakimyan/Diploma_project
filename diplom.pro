@@ -13,9 +13,11 @@ SOURCES += \
     generator.cpp \
     jsondatareader.cpp \
     jsonplacementwriter.cpp \
+    linesearchrouting.cpp \
     main.cpp \
     mainwindow.cpp \
     matrix_compute.cpp \
+    mincutplacement.cpp \
     quadraticplacement.cpp \
     visualizer.cpp
 
@@ -24,8 +26,10 @@ HEADERS += \
     generator.h \
     jsondatareader.h \
     jsonplacementwriter.h \
+    linesearchrouting.h \
     mainwindow.h \
     matrix_compute.h \
+    mincutplacement.h \
     quadraticplacement.h \
     structurs.h \
     visualizer.h
